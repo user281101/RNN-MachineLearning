@@ -1,4 +1,6 @@
+tensorflow
+matplotlib
+keras
+scikit-learn
 pandas
 numpy
-scikit-learn
-tensorflow
