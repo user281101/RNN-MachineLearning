@@ -4,14 +4,25 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
-#import keras 
-#from keras import Sequential,layers
 from tensorflow.keras import Sequential,models
 from tensorflow.keras import layers
 from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.callbacks import EarlyStopping
 
 import matplotlib
 matplotlib.use('Agg') 
+
+# Prüfen, ob Metal GPU verfügbar ist
+gpu_devices = tf.config.list_physical_devices('GPU')
+
+if gpu_devices:
+    print(f"GPU verfügbar: {gpu_devices[0]}")
+else:
+    print("Keine GPU gefunden.")
+
+# Prüfen, welches Gerät für TensorFlow-Operationen genutzt wird
+print("TensorFlow nutzt aktuell:", tf.test.gpu_device_name())
+
 
 # Step 1: Laden und Vorbereiten von Daten
 #data = pd.read_csv('jena_climate_2009_2016.csv')
@@ -54,16 +65,26 @@ X_test, y_test = create_sequences(test_scaled, sequence_length)
 
 # Step 3: Erstellen des LSTM-Modells
 model = tf.keras.Sequential([
-    tf.keras.layers.LSTM(100, activation='tanh', return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
-    tf.keras.layers.LSTM(100, activation='tanh',return_sequences=True),
+    tf.keras.layers.LSTM(50, activation='tanh', return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
+    tf.keras.layers.BatchNormalization(),  # Stabilisiert das Training
     tf.keras.layers.LSTM(50, activation='tanh'),
+    tf.keras.layers.Dropout(0.2),  # Verhindert Overfitting
     tf.keras.layers.Dense(1)
 ])
 
-model.compile(optimizer='adam', loss='mse')
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3), loss='mse')
+#model.compile(optimizer='adam', loss='mse')
+
+# Early Stopping Callback hinzufügen
+early_stopping = EarlyStopping( 
+    monitor='val_loss',  # Überwacht den Validierungsverlust
+    patience=3,          # Stoppt, wenn sich val_loss für 3 Epochen nicht verbessert
+    restore_best_weights=True  # Nimmt die besten Modellgewichte
+)
 
 # Trainieren des Modells
-history = model.fit(X_train, y_train, validation_split=0.2, epochs=1, batch_size=64)
+history = model.fit(X_train, y_train, validation_split=0.2, epochs=20, batch_size=32)
+#callbacks=[early_stopping]
 
 # Step 4: Bewerten das Modell
 mse = model.evaluate(X_test, y_test)
@@ -87,10 +108,20 @@ plt.title('Loss Over Epochs')
 plt.legend()
 plt.savefig('loss_over_epochs.png')  
 
-#schau warum die syntax nicht funktioniert dann sollte der code funktionieren
+#gegenüberstellung
+plt.figure(figsize=(12, 6))
+plt.plot(y_test[:100], label='Actual Temperatures', color='blue')
+plt.plot(predictions[:100], label='Predicted Temperatures', linestyle='dashed', color='red')
+plt.title('Actual vs Predicted Temperatures (Ausschnitt)')
+plt.legend()
+plt.savefig('actual_vs_predicted_temperatures.png')
 
-'''import tensorflow as tf
-print(tf.__version__)  # Sollte 2.16.2 ausgeben
+import numpy as np
 
-from tensorflow.keras import layers
-print(layers.Dense(10))  # Testet, ob Keras funktioniert'''
+print(np.isnan(X_train).sum())  # Prüfen, ob NaNs im Trainingsdatensatz sind
+print(np.isnan(y_train).sum())  # Prüfen, ob NaNs in den Labels sind
+
+#accuracy score mit einfügen, schauen was der graph mir sagt
+#mse metrik für regression ist ja temp-vorhersage
+#morgen videos zu rnn und lstm schauen
+#python tutorial von codebasics durchgehen, neben ML auch python skills aufbauen und regelmäßig ins CV schreiben und bewerben
